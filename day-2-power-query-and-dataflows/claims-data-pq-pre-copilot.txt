@@ -1,0 +1,13 @@
+let
+    Source = Excel.CurrentWorkbook(){[Name="quarterly_claims"]}[Content],
+    #"Changed Type" = Table.TransformColumnTypes(Source,{{"Policy_ID", type text}, {"Customer_Name", type text}, {"Claim_Q1", Int64.Type}, {"Claim_Q2", Int64.Type}, {"Claim_Q3", Int64.Type}, {"Claim_Q4", Int64.Type}, {"Agent_Info", type text}}),
+    #"Filled Down" = Table.FillDown(#"Changed Type",{"Customer_Name"}),
+    #"Reordered Columns" = Table.ReorderColumns(#"Filled Down",{"Policy_ID", "Customer_Name", "Agent_Info", "Claim_Q1", "Claim_Q2", "Claim_Q3", "Claim_Q4"}),
+    #"Split Column by Delimiter" = Table.SplitColumn(#"Reordered Columns", "Agent_Info", Splitter.SplitTextByDelimiter("-", QuoteStyle.Csv), {"Agent_Info.1", "Agent_Info.2"}),
+    #"Changed Type1" = Table.TransformColumnTypes(#"Split Column by Delimiter",{{"Agent_Info.1", type text}, {"Agent_Info.2", type text}}),
+    #"Renamed Columns" = Table.RenameColumns(#"Changed Type1",{{"Agent_Info.1", "Agent_ID"}, {"Agent_Info.2", "Agent_Name"}}),
+    #"Unpivoted Other Columns" = Table.UnpivotOtherColumns(#"Renamed Columns", {"Agent_Name", "Policy_ID", "Customer_Name", "Agent_ID"}, "Attribute", "Value"),
+    #"Renamed Columns1" = Table.RenameColumns(#"Unpivoted Other Columns",{{"Attribute", "Quarter"}, {"Value", "Claim"}}),
+    #"Extracted Last Characters" = Table.TransformColumns(#"Renamed Columns1", {{"Quarter", each Text.End(_, 2), type text}})
+in
+    #"Extracted Last Characters"

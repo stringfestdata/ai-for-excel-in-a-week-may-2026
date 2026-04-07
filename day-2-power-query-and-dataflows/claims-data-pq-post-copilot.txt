@@ -1,0 +1,51 @@
+let
+    // Load source table
+    Source = Excel.CurrentWorkbook(){[Name="quarterly_claims"]}[Content],
+
+    // Ensure correct data types for each column
+    TypedClaims = Table.TransformColumnTypes(Source, {
+        {"Policy_ID", type text},
+        {"Customer_Name", type text},
+        {"Claim_Q1", Int64.Type},
+        {"Claim_Q2", Int64.Type},
+        {"Claim_Q3", Int64.Type},
+        {"Claim_Q4", Int64.Type},
+        {"Agent_Info", type text}
+    }),
+
+    // Fill down missing customer names
+    FilledCustomerNames = Table.FillDown(TypedClaims, {"Customer_Name"}),
+
+    // Reorder columns for logical grouping
+    ReorderedColumns = Table.ReorderColumns(FilledCustomerNames, {
+        "Policy_ID", "Customer_Name", "Agent_Info", "Claim_Q1", "Claim_Q2", "Claim_Q3", "Claim_Q4"
+    }),
+
+    // Split Agent_Info into Agent_ID and Agent_Name
+    SplitAgentInfo = Table.SplitColumn(ReorderedColumns, "Agent_Info", Splitter.SplitTextByDelimiter("-", QuoteStyle.Csv), {"Agent_Info.1", "Agent_Info.2"}),
+
+    // Set correct types for new agent columns
+    TypedAgentColumns = Table.TransformColumnTypes(SplitAgentInfo, {
+        {"Agent_Info.1", type text},
+        {"Agent_Info.2", type text}
+    }),
+
+    // Rename agent columns for clarity
+    RenamedAgentColumns = Table.RenameColumns(TypedAgentColumns, {
+        {"Agent_Info.1", "Agent_ID"},
+        {"Agent_Info.2", "Agent_Name"}
+    }),
+
+    // Unpivot claim columns to normalize data
+    UnpivotedClaims = Table.UnpivotOtherColumns(RenamedAgentColumns, {"Agent_Name", "Policy_ID", "Customer_Name", "Agent_ID"}, "Quarter", "Claim"),
+
+    // Clean up quarter and claim column names
+    RenamedUnpivotedColumns = Table.RenameColumns(UnpivotedClaims, {
+        {"Quarter", "Quarter"},
+        {"Claim", "Claim"}
+    }),
+
+    // Extract quarter number (last 2 characters)
+    ExtractedQuarter = Table.TransformColumns(RenamedUnpivotedColumns, {{"Quarter", each Text.End(_, 2), type text}})
+in
+    ExtractedQuarter
